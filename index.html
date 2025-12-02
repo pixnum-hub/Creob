@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creob - Credit Score Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --dark-bg:#1b1d23; --dark-shadow:#0e1014; --dark-light:#2c2f36; --accent:#00b4ff; --text-dark:#fff;
+  --light-bg:#f0f0f3; --light-shadow:#c8c8c8; --light-light:#ffffff; --text-light:#222;
+}
+body{
+  margin:0; padding:10px; font-family:Arial,sans-serif;
+  background:var(--dark-bg); color:var(--text-dark);
+  display:flex; justify-content:center; min-height:100vh; transition:0.3s;
+}
+body.light-mode{background:var(--light-bg); color:var(--text-light);}
+.app-container{
+  border:2px solid var(--accent); border-radius:30px; padding:20px;
+  width:100%; max-width:950px; background:var(--dark-bg);
+  box-shadow:10px 10px 30px var(--dark-shadow), -10px -10px 30px var(--dark-light);
+  position:relative; transition:0.3s;
+}
+body.light-mode .app-container{
+  background:var(--light-bg);
+  box-shadow:10px 10px 30px var(--light-shadow), -10px -10px 30px #fff;
+}
+.toggle-mode{
+  width:45px; height:45px; border-radius:50%; background:var(--dark-bg);
+  box-shadow:5px 5px 15px var(--dark-shadow), -5px -5px 15px var(--dark-light);
+  position:absolute; top:20px; right:20px; display:flex; align-items:center; justify-content:center;
+  font-size:20px; cursor:pointer; user-select:none; transition:0.3s;
+}
+body.light-mode .toggle-mode{background:var(--light-bg); box-shadow:5px 5px 15px var(--light-shadow), -5px -5px 15px #fff;}
+h2,h3{text-align:center;margin-top:25px;font-weight:bold;}
+input, select{
+  width:100%; padding:12px; margin:8px 0; border-radius:12px; border:none; font-size:16px;
+  background: var(--dark-bg); color: var(--text-dark);
+  box-shadow: inset 6px 6px 15px var(--dark-shadow), inset -6px -6px 15px var(--dark-light);
+  outline:none; transition:0.3s; box-sizing:border-box;
+}
+body.light-mode input, body.light-mode select{
+  background: var(--light-bg); color: var(--text-light);
+  box-shadow: inset 6px 6px 15px var(--light-shadow), inset -6px -6px 15px #fff;
+}
+button{
+  width:100%; padding:14px; margin:10px 0; background:var(--accent);
+  border:none; border-radius:12px; font-size:16px; color:white; font-weight:bold; cursor:pointer;
+  transition:0.3s;
+}
+button:hover{opacity:0.85;}
+.reset-btn{background:red;}
+.reset-btn:hover{opacity:0.85;}
+.card{
+  padding:18px; border-radius:18px; margin-top:20px;
+  background: var(--dark-bg);
+  box-shadow:8px 8px 20px var(--dark-shadow), -8px -8px 20px var(--dark-light);
+  transition:0.3s;
+}
+body.light-mode .card{background:var(--light-bg); box-shadow:8px 8px 20px var(--light-shadow), -8px -8px 20px #fff;}
+canvas{width:100%; max-width:100%; height:auto;}
+.progress-bar{width:100%; background:#333; height:18px; border-radius:9px; margin-top:10px; overflow:hidden;}
+.progress{height:100%; width:0; background:#00ffaa; border-radius:9px; transition:0.8s;}
+.summary-card{background:#2c313b; padding:10px; border-radius:12px; margin-top:10px; transition:0.3s;}
+body.light-mode .summary-card{background:#d3d3d3;}
+#scoreTag{display:inline-block; min-width:90px; text-align:center; padding:5px 12px; border-radius:12px; font-weight:bold; margin-left:10px; transition:0.5s;}
+#optimizedStrategy p{margin:5px 0; font-size:14px;}
+.footer{ text-align:center; padding:10px; margin-top:20px; font-size:14px; color:#aaa; border-top:1px solid var(--accent);}
+body.light-mode .footer{color:#555; border-top:1px solid var(--accent);}
+@media screen and (max-width:600px){
+  h2,h3{font-size:18px;}
+  input, select, button{font-size:14px; padding:10px;}
+  .toggle-mode{width:40px;height:40px;font-size:18px;}
+  .card{padding:15px;}
+  .progress-bar{height:14px;}
+}
+</style>
+</head>
+<body>
+<div class="app-container">
+<div class="toggle-mode" onclick="toggleDarkMode()">🌙</div>
+<h2>Creob</h2>
+
+<input type="number" id="scoreInput" placeholder="Enter Credit Score (300-900)">
+<button onclick="checkScore()">Analyze Score</button>
+<div id="result" class="card">
+  <span id="scoreText"></span>
+  <span id="scoreTag"></span>
+</div>
+<div class="card"><h3>Credit Score Gauge</h3><canvas id="scoreGauge" height="200"></canvas></div>
+
+<div class="card">
+<h3>Loan Eligibility</h3>
+<input id="income" type="number" placeholder="Monthly Income ₹">
+<input id="existingDebts" type="number" placeholder="Existing Debts ₹">
+<button onclick="calculateLoanEligibility()">Calculate Loan</button>
+<div id="loanResult"></div>
+</div>
+
+<div class="card">
+<h3>EMI Calculator</h3>
+<input id="loanAmount" type="number" placeholder="Loan Amount ₹">
+<input id="interestRate" type="number" placeholder="Interest Rate %">
+<input id="tenure" type="number" placeholder="Tenure (Months)">
+<button onclick="calculateEMI()">Calculate EMI</button>
+<div id="emiResult"></div>
+</div>
+
+<div class="card">
+<h3>Credit Utilization & DTI Tracker</h3>
+<input id="creditUsed" type="number" placeholder="Credit Used ₹">
+<input id="creditLimit" type="number" placeholder="Credit Limit ₹">
+<input id="incomeDTI" type="number" placeholder="Monthly Income ₹">
+<input id="debtsDTI" type="number" placeholder="Monthly Debts ₹">
+<button onclick="calculateUtilization()">Show Utilization & DTI</button>
+<canvas id="utilizationChart" height="200"></canvas>
+<div id="utilizationResult"></div>
+<div class="progress-bar"><div id="dtiProgress" class="progress"></div></div>
+</div>
+
+<div class="card">
+<h3>Advanced AI Tips</h3>
+<button onclick="generateTips()">Generate Tips</button>
+<div id="aiTips"></div>
+</div>
+
+<div class="card">
+<h3>Score History & Trend</h3>
+<canvas id="historyChart" height="200"></canvas>
+</div>
+
+<div class="card">
+<h3>Multi-Action Monthly Simulation</h3>
+<input id="simMonths" type="number" placeholder="Months (1-12)">
+<select id="simActions" multiple>
+<option value="onTime">On-Time Payment (+20)</option>
+<option value="missPayment">Miss Payment (-50)</option>
+<option value="reduceDebt">Reduce Debt (+15)</option>
+<option value="newLoan">New Loan (-30)</option>
+</select>
+<button onclick="runSimulation()">Run Simulation</button>
+<canvas id="simulationChart" height="200"></canvas>
+</div>
+
+<div class="card">
+<h3>Goal-Based Planner</h3>
+<input id="targetScore" type="number" placeholder="Target Credit Score">
+<button onclick="planGoal()">Plan Goal</button>
+<div id="goalResult"></div>
+</div>
+
+<div class="card">
+<h3>What-If Strategy Comparison</h3>
+<input id="strategyMonths" type="number" placeholder="Months (1-12)">
+<select id="strategy1" multiple></select>
+<select id="strategy2" multiple></select>
+<select id="strategy3" multiple></select>
+<script>
+["onTime","missPayment","reduceDebt","newLoan"].forEach(v=>{
+document.querySelectorAll("#strategy1,#strategy2,#strategy3").forEach(sel=>{
+var opt=document.createElement("option"); opt.value=v; opt.textContent=v;
+sel.append(opt.cloneNode(1));
+});
+});
+</script>
+<button onclick="runStrategies()">Run Strategies</button>
+<canvas id="strategyChart" height="250"></canvas>
+<div id="strategySummary"></div>
+</div>
+
+<div class="card">
+<h3>Optimized Strategy Generator</h3>
+<button onclick="generateOptimizedStrategy()">Generate Optimized Strategy</button>
+<div id="optimizedStrategy"></div>
+<canvas id="optimizedChart" height="250"></canvas>
+</div>
+
+<div class="card">
+<button onclick="exportPDF()">Export Full Report as PDF</button>
+<button class="reset-btn" onclick="resetAll()">Reset All</button>
+</div>
+
+<div class="footer">© Manik Roy 2025. All Rights Reserved.</div>
+</div>
+
+<script>
+// Dark mode toggle
+function toggleDarkMode(){document.body.classList.toggle("light-mode");}
+
+// Global variables
+let scoreHistory=JSON.parse(localStorage.getItem("scoreHistory"))||[];
+let gaugeChart, historyChart, utilizationChart, simulationChart, strategyChart, optimizedChart;
+
+// Credit Score Analysis
+function checkScore(){
+  let s=parseInt(document.getElementById("scoreInput").value);
+  if(!s||s<300||s>900){ alert("Enter 300-900"); return; }
+  document.getElementById("scoreText").textContent="Current Credit Score: "+s;
+  let tagText="", tagColor="";
+  if(s<=579){tagText="Worst"; tagColor="#ff4d4d";}
+  else if(s<=669){tagText="Bad"; tagColor="#ff9900";}
+  else if(s<=739){tagText="Good"; tagColor="#ffea00";}
+  else if(s<=799){tagText="Very Good"; tagColor="#66ff66";}
+  else{tagText="Excellent"; tagColor="#00cc44";}
+  let tag=document.getElementById("scoreTag");
+  tag.textContent=tagText; tag.style.backgroundColor=tagColor; tag.style.color="#000";
+  scoreHistory.push(s); localStorage.setItem("scoreHistory", JSON.stringify(scoreHistory));
+  renderHistoryChart(); renderGauge(s);
+}
+
+// Loan Eligibility
+function calculateLoanEligibility(){
+  let income=parseFloat(document.getElementById("income").value)||0;
+  let debts=parseFloat(document.getElementById("existingDebts").value)||0;
+  let maxLoan=Math.max(0,(income*20)-debts);
+  document.getElementById("loanResult").innerHTML=`Maximum Eligible Loan: ₹${maxLoan.toFixed(0)}`;
+}
+
+// EMI Calculator
+function calculateEMI(){
+  let P=parseFloat(document.getElementById("loanAmount").value)||0;
+  let r=parseFloat(document.getElementById("interestRate").value)/1200||0;
+  let n=parseFloat(document.getElementById("tenure").value)||1;
+  let emi=P*r*(Math.pow(1+r,n))/(Math.pow(1+r,n)-1);
+  if(!isFinite(emi)) emi=0;
+  document.getElementById("emiResult").innerHTML=`Monthly EMI: ₹${emi.toFixed(0)}`;
+}
+
+// Credit Utilization & DTI
+function calculateUtilization(){
+  let used=parseFloat(document.getElementById("creditUsed").value)||0;
+  let limit=parseFloat(document.getElementById("creditLimit").value)||1;
+  let income=parseFloat(document.getElementById("incomeDTI").value)||1;
+  let debts=parseFloat(document.getElementById("debtsDTI").value)||0;
+  let util=(used/limit)*100;
+  let dti=(debts/income)*100;
+  document.getElementById("utilizationResult").innerHTML=`Credit Utilization: ${util.toFixed(2)}%<br>DTI Ratio: ${dti.toFixed(2)}%`;
+  document.getElementById("dtiProgress").style.width=`${Math.min(dti,100)}%`;
+  renderUtilizationChart(util);
+}
+
+// AI Tips
+function generateTips(){
+  let tips=["Pay bills on time","Keep credit utilization <30%","Reduce debts gradually","Avoid unnecessary new loans","Maintain a mix of credit types"];
+  let shuffled=tips.sort(()=>0.5-Math.random());
+  document.getElementById("aiTips").innerHTML=shuffled.slice(0,3).map(t=>"<p>"+t+"</p>").join("");
+}
+
+// Score History Chart
+function renderHistoryChart(){if(scoreHistory.length==0) return; if(historyChart) historyChart.destroy(); historyChart=new Chart(document.getElementById("historyChart").getContext("2d"),{type:"line",data:{labels:scoreHistory.map((_,i)=>"Entry "+(i+1)),datasets:[{label:"Score History",data:scoreHistory,borderColor:"#00ffaa",fill:false}]},options:{responsive:true,animation:{duration:800},scales:{y:{min:300,max:900}}}});}
+function renderGauge(score){if(gaugeChart) gaugeChart.destroy(); gaugeChart=new Chart(document.getElementById("scoreGauge").getContext("2d"),{type:"doughnut",data:{labels:["Score","Remaining"],datasets:[{data:[score,900-score],backgroundColor:["#00ffaa","#555"]}]},options:{responsive:true,cutout:"70%",plugins:{tooltip:{enabled:false}},animation:{animateRotate:true,animateScale:true}}});}
+function renderUtilizationChart(util){if(utilizationChart) utilizationChart.destroy(); utilizationChart=new Chart(document.getElementById("utilizationChart").getContext("2d"),{type:"bar",data:{labels:["Credit Utilization %"],datasets:[{data:[util],backgroundColor:"#ffcc00"}]},options:{responsive:true,scales:{y:{min:0,max:100}},animation:{duration:800}}});}
+
+// Multi-Action Simulation
+function runSimulation(){
+  let months=parseInt(document.getElementById("simMonths").value)||1;
+  let actions=[...document.getElementById("simActions").selectedOptions].map(o=>o.value);
+  let score=scoreHistory[scoreHistory.length-1]||650;
+  let data=[];
+  for(let i=0;i<months;i++){
+    actions.forEach(a=>{
+      if(a=="onTime") score+=20;
+      else if(a=="missPayment") score-=50;
+      else if(a=="reduceDebt") score+=15;
+      else if(a=="newLoan") score-=30;
+    });
+    if(score>900) score=900; if(score<300) score=300;
+    data.push(score);
+  }
+  if(simulationChart) simulationChart.destroy();
+  simulationChart=new Chart(document.getElementById("simulationChart").getContext("2d"),{type:"line",data:{labels:data.map((_,i)=>"Month "+(i+1)),datasets:[{label:"Projected Score",data:data,borderColor:"#ff6600",fill:false}]},options:{responsive:true,animation:{duration:800},scales:{y:{min:300,max:900}}}});
+}
+
+// Goal-Based Planner
+function planGoal(){
+  let target=parseInt(document.getElementById("targetScore").value)||700;
+  let current=scoreHistory[scoreHistory.length-1]||650;
+  let months=Math.ceil(Math.abs(target-current)/20);
+  let plan=`To reach ${target}, take on-time payments consistently for approx. ${months} months.`;
+  document.getElementById("goalResult").innerHTML=plan;
+}
+
+// Strategy Comparison
+function runStrategies(){
+  let months=parseInt(document.getElementById("strategyMonths").value)||1;
+  let scores=[scoreHistory[scoreHistory.length-1]||650,scoreHistory[scoreHistory.length-1]||650,scoreHistory[scoreHistory.length-1]||650];
+  let strategies=[...document.getElementById("strategy1").selectedOptions].map(o=>o.value);
+  let strategies2=[...document.getElementById("strategy2").selectedOptions].map(o=>o.value);
+  let strategies3=[...document.getElementById("strategy3").selectedOptions].map(o=>o.value);
+  let results=[strategies,strategies2,strategies3].map((acts,index)=>{
+    let s=scores[index]; let arr=[];
+    for(let i=0;i<months;i++){
+      acts.forEach(a=>{
+        if(a=="onTime") s+=20; else if(a=="missPayment") s-=50;
+        else if(a=="reduceDebt") s+=15; else if(a=="newLoan") s-=30;
+      });
+      if(s>900)s=900; if(s<300)s=300;
+      arr.push(s);
+    } return arr;
+  });
+  if(strategyChart) strategyChart.destroy();
+  strategyChart=new Chart(document.getElementById("strategyChart").getContext("2d"),{type:"line",data:{labels:results[0].map((_,i)=>"Month "+(i+1)),datasets:[
+    {label:"Strategy 1",data:results[0],borderColor:"#ff0000",fill:false},
+    {label:"Strategy 2",data:results[1],borderColor:"#00ff00",fill:false},
+    {label:"Strategy 3",data:results[2],borderColor:"#0000ff",fill:false}
+  ]},options:{responsive:true,animation:{duration:800},scales:{y:{min:300,max:900}}}});
+  document.getElementById("strategySummary").innerHTML=`Final Scores:<br>Strategy 1: ${results[0][results[0].length-1]}<br>Strategy 2: ${results[1][results[1].length-1]}<br>Strategy 3: ${results[2][results[2].length-1]}`;
+}
+
+// Optimized Strategy Generator
+function generateOptimizedStrategy(){
+  let score=scoreHistory[scoreHistory.length-1]||650;
+  let target=parseInt(document.getElementById("targetScore").value)||750;
+  let actions=[];
+  let temp=score;
+  while(temp<target){
+    actions.push("On-Time Payment");
+    temp+=20;
+  }
+  if(optimizedChart) optimizedChart.destroy();
+  optimizedChart=new Chart(document.getElementById("optimizedChart").getContext("2d"),{type:"line",data:{labels:actions.map((_,i)=>"Month "+(i+1)),datasets:[{label:"Optimized Score",data:actions.map((_,i)=>score+(i+1)*20),borderColor:"#ff00ff",fill:false}]},options:{responsive:true,animation:{duration:800},scales:{y:{min:300,max:900}}}});
+  document.getElementById("optimizedStrategy").innerHTML=actions.map((a,i)=>`Month ${i+1}: ${a}`).join("<br>");
+}
+
+// Export PDF
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text("Credit Score Dashboard Report",10,10);
+  doc.text(`Current Score: ${scoreHistory[scoreHistory.length-1]||'N/A'}`,10,20);
+  doc.text(document.getElementById("loanResult").innerText,10,30);
+  doc.text(document.getElementById("emiResult").innerText,10,40);
+  doc.text(document.getElementById("utilizationResult").innerText,10,50);
+  doc.text("AI Tips:",10,60);
+  let tips=document.getElementById("aiTips").innerText.split("\n");
+  tips.forEach((t,i)=>doc.text(t,10,70+10*i));
+  doc.save("CreditScoreReport.pdf");
+}
+
+// Reset All
+function resetAll(){
+  localStorage.clear();
+  scoreHistory=[]; document.getElementById("scoreInput").value="";
+  document.getElementById("scoreText").textContent="";
+  document.getElementById("scoreTag").textContent="";
+  document.getElementById("loanResult").textContent="";
+  document.getElementById("emiResult").textContent="";
+  document.getElementById("utilizationResult").textContent="";
+  document.getElementById("aiTips").textContent="";
+  document.getElementById("goalResult").textContent="";
+  document.getElementById("strategySummary").textContent="";
+  document.getElementById("optimizedStrategy").textContent="";
+  if(gaugeChart) gaugeChart.destroy();
+  if(historyChart) historyChart.destroy();
+  if(utilizationChart) utilizationChart.destroy();
+  if(simulationChart) simulationChart.destroy();
+  if(strategyChart) strategyChart.destroy();
+  if(optimizedChart) optimizedChart.destroy();
+  document.getElementById("dtiProgress").style.width="0%";
+}
+renderHistoryChart();
+</script>
+</body>
+</html>
